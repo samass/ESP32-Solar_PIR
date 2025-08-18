@@ -1,6 +1,16 @@
-#include <ESP8266WiFi.h>
-#include <ESP8266WiFiMulti.h>
-#include <ESP8266WebServer.h>
+// Platform-specific includes
+#ifdef ESP32
+  #include <WiFi.h>
+  #include <WiFiMulti.h>
+  #include <WebServer.h>
+#endif
+
+#ifdef ESP8266
+  #include <ESP8266WiFi.h>
+  #include <ESP8266WiFiMulti.h>
+  #include <ESP8266WebServer.h>
+#endif
+
 #include "DHT.h"
 #include "webpage.h"
 
@@ -8,8 +18,17 @@
 #define DHTTYPE DHT22
 
 DHT dht(DHTPIN, DHTTYPE);
-ESP8266WebServer server(80);
-ESP8266WiFiMulti wifiMulti;
+
+// Platform-specific object declarations
+#ifdef ESP32
+  WebServer server(80);
+  WiFiMulti wifiMulti;
+#endif
+
+#ifdef ESP8266
+  ESP8266WebServer server(80);
+  ESP8266WiFiMulti wifiMulti;
+#endif
 
 unsigned long lastRead = 0;
 float temperature = 0.0;
@@ -40,7 +59,16 @@ void handleRoot() {
   <head>
     <meta charset="UTF-8">
     <meta http-equiv='refresh' content='10'>
-    <title>ESP32 DHT22 Server</title>
+    <title>)rawliteral";
+    
+#ifdef ESP32
+  html += "ESP32";
+#endif
+#ifdef ESP8266
+  html += "ESP8266";
+#endif
+
+  html += R"rawliteral( DHT22 Server</title>
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -66,7 +94,16 @@ void handleRoot() {
   </head>
   <body>
     <div class="card">
-      <h1>ESP32 DHT22 Sensor Readings</h1>
+      <h1>)rawliteral";
+
+#ifdef ESP32
+  html += "ESP32";
+#endif
+#ifdef ESP8266
+  html += "ESP8266";
+#endif
+
+  html += R"rawliteral( DHT22 Sensor Readings</h1>
       <p>🌡 Temperature: )rawliteral";
 
   html += isnan(temperature) ? "N/A" : String(temperature) + " °C";
@@ -86,6 +123,14 @@ void handleRoot() {
 void setup() {
   Serial.begin(115200);
   dht.begin();
+
+  // Set hostname (platform-specific method)
+#ifdef ESP32
+  WiFi.setHostname("SolarPIR-ESP32");
+#endif
+#ifdef ESP8266
+  WiFi.hostname("SolarPIR-ESP8266");
+#endif
 
   // Add all networks to WiFiMulti
   //wifiMulti.addAP(ssid_wokwi, pass_wokwi);
@@ -112,6 +157,14 @@ void loop() {
   unsigned long now = millis();
   if (now - lastDebug > 10000) { // 10 seconds
     Serial.println("\n================ DEVICE STATUS ================");
+    
+#ifdef ESP32
+    Serial.println("Platform: ESP32");
+#endif
+#ifdef ESP8266
+    Serial.println("Platform: ESP8266");
+#endif
+
     Serial.print("WiFi SSID: ");
     Serial.println(WiFi.SSID());
     Serial.print("IP Address: ");
@@ -120,7 +173,12 @@ void loop() {
     Serial.print(WiFi.RSSI());
     Serial.println(" dBm");
     Serial.print("Hostname: ");
+#ifdef ESP32
+    Serial.println(WiFi.getHostname());
+#endif
+#ifdef ESP8266
     Serial.println(WiFi.hostname());
+#endif
     Serial.print("MAC Address: ");
     Serial.println(WiFi.macAddress());
     Serial.print("Temperature: ");
