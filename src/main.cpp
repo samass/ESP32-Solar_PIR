@@ -1,6 +1,6 @@
-#include <ESP8266WiFi.h>
-#include <ESP8266WiFiMulti.h>
-#include <ESP8266WebServer.h>
+#include <WiFi.h>
+#include <WiFiMulti.h>
+#include <WebServer.h>
 #include "DHT.h"
 #include "webpage.h"
 
@@ -8,8 +8,8 @@
 #define DHTTYPE DHT22
 
 DHT dht(DHTPIN, DHTTYPE);
-ESP8266WebServer server(80);
-ESP8266WiFiMulti wifiMulti;
+WebServer server(80);
+WiFiMulti wifiMulti;
 
 unsigned long lastRead = 0;
 float temperature = 0.0;
@@ -87,6 +87,8 @@ void setup() {
   Serial.begin(115200);
   dht.begin();
 
+  WiFi.setHostname("SolarPIR-ESP32");  // ESP32 hostname method
+
   // Add all networks to WiFiMulti
   //wifiMulti.addAP(ssid_wokwi, pass_wokwi);
   wifiMulti.addAP(ssid_home, pass_home);
@@ -112,6 +114,7 @@ void loop() {
   unsigned long now = millis();
   if (now - lastDebug > 10000) { // 10 seconds
     Serial.println("\n================ DEVICE STATUS ================");
+    Serial.println("Platform: ESP32");
     Serial.print("WiFi SSID: ");
     Serial.println(WiFi.SSID());
     Serial.print("IP Address: ");
@@ -120,7 +123,7 @@ void loop() {
     Serial.print(WiFi.RSSI());
     Serial.println(" dBm");
     Serial.print("Hostname: ");
-    Serial.println(WiFi.hostname());
+    Serial.println(WiFi.getHostname());
     Serial.print("MAC Address: ");
     Serial.println(WiFi.macAddress());
     Serial.print("Temperature: ");
