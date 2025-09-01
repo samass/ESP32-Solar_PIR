@@ -1,3 +1,8 @@
+// webpage.h - Template for future Solar PIR Light Controller web interface
+// This template is not currently used in main.cpp 
+// Current implementation uses inline HTML generation for DHT22 sensor display
+// Future features: solar voltage monitoring, battery level, PIR light control
+
 const char MAIN_page[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
 <html>
