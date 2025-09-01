@@ -37,8 +37,8 @@ float humidity = 0.0;
 // Add your WiFi credentials here
 //const char* ssid_wokwi = "Wokwi-GUEST";
 //const char* pass_wokwi = "";
-const char* ssid_home = "SKYAEPBW";
-const char* pass_home = "e3CVynV31eeU";
+const char* ssid_home = "YourHomeWiFi";
+const char* pass_home = "YourHomePassword";
 const char* ssid_office = "YourOfficeWiFi";
 const char* pass_office = "YourOfficePassword";
 
