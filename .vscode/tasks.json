@@ -1,0 +1,16 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Build ESP8266 PIR",
+			"type": "shell",
+			"command": "C:/Users/${env:USERNAME}/.platformio/penv/Scripts/platformio.exe",
+			"args": [
+				"run",
+				"-e",
+				"nodemcuv2"
+			],
+			"group": "build"
+		}
+	]
+}

@@ -16,6 +16,24 @@
 
 #define DHTPIN 15
 #define DHTTYPE DHT22
+#define PIR_PIN 2
+
+// Voltage sensing configuration
+#ifdef ESP32
+  #define VOLTAGE_PIN 35  // ADC1 pin for voltage sensing (ESP32)
+  #define ADC_MAX 4095    // 12-bit ADC
+  #define REF_VOLTAGE 3.3 // Reference voltage
+#endif
+
+#ifdef ESP8266
+  #define VOLTAGE_PIN A0  // Analog pin for voltage sensing (ESP8266)  
+  #define ADC_MAX 1023    // 10-bit ADC
+  #define REF_VOLTAGE 3.3 // Reference voltage
+#endif
+
+// Voltage divider ratio (adjust based on your hardware)
+#define VOLTAGE_DIVIDER_RATIO 4.1  // Calibrated for solar panel voltage
+#define NIGHT_VOLTAGE_THRESHOLD 1.5  // Below this voltage = night time
 
 DHT dht(DHTPIN, DHTTYPE);
 
@@ -33,6 +51,15 @@ DHT dht(DHTPIN, DHTTYPE);
 unsigned long lastRead = 0;
 float temperature = 0.0;
 float humidity = 0.0;
+float voltage = 0.0;
+
+// PIR motion detection variables
+volatile bool motionDetected = false;
+unsigned long lastMotionTime = 0;
+unsigned long motionCount = 0;
+bool isNightTime = false;
+bool lightActive = false;
+const unsigned long LIGHT_DURATION = 30000; // Light stays on for 30 seconds
 
 // Add your WiFi credentials here
 //const char* ssid_wokwi = "Wokwi-GUEST";
@@ -41,6 +68,41 @@ const char* ssid_home = "SKYAEPBW";
 const char* pass_home = "e3CVynV31eeU";
 const char* ssid_office = "YourOfficeWiFi";
 const char* pass_office = "YourOfficePassword";
+
+// PIR interrupt handler
+IRAM_ATTR void handleMotion() {
+  motionDetected = true;
+}
+
+// Read voltage from solar panel/battery
+void readVoltage() {
+  int adcValue = analogRead(VOLTAGE_PIN);
+  voltage = (adcValue * REF_VOLTAGE / ADC_MAX) * VOLTAGE_DIVIDER_RATIO;
+  isNightTime = (voltage < NIGHT_VOLTAGE_THRESHOLD);
+}
+
+// Handle PIR motion detection
+void handlePIRMotion() {
+  if (motionDetected && isNightTime) {
+    motionDetected = false; // Reset flag
+    lastMotionTime = millis();
+    motionCount++;
+    lightActive = true;
+    
+    Serial.println("*** MOTION DETECTED AT NIGHT ***");
+    Serial.print("Motion count: ");
+    Serial.println(motionCount);
+    Serial.print("Solar voltage: ");
+    Serial.print(voltage);
+    Serial.println("V (Night mode)");
+  }
+  
+  // Turn off light after duration
+  if (lightActive && (millis() - lastMotionTime > LIGHT_DURATION)) {
+    lightActive = false;
+    Serial.println("Light turned OFF (timeout)");
+  }
+}
 
 void readDHT() {
   unsigned long now = millis();
@@ -53,6 +115,7 @@ void readDHT() {
 
 void handleRoot() {
   readDHT();
+  readVoltage(); // Update voltage reading
   String html = R"rawliteral(
   <!DOCTYPE html>
   <html>
@@ -68,7 +131,7 @@ void handleRoot() {
   html += "ESP8266";
 #endif
 
-  html += R"rawliteral( DHT22 Server</title>
+  html += R"rawliteral( Solar PIR Light</title>
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -90,6 +153,8 @@ void handleRoot() {
         display: inline-block;
         box-shadow: 0 0 10px rgba(0,0,0,0.1);
       }
+      .status-on { color: #28a745; font-weight: bold; }
+      .status-off { color: #dc3545; font-weight: bold; }
     </style>
   </head>
   <body>
@@ -103,7 +168,16 @@ void handleRoot() {
   html += "ESP8266";
 #endif
 
-  html += R"rawliteral( DHT22 Sensor Readings</h1>
+  html += R"rawliteral( Solar PIR Light</h1>
+      <p>🔆 Solar Voltage: )rawliteral";
+  html += String(voltage, 2) + "V (" + (isNightTime ? "NIGHT" : "DAY") + ")";
+  html += R"rawliteral(</p>
+      <p>💡 Light Status: <span class=")rawliteral";
+  html += lightActive ? "status-on\">ON" : "status-off\">OFF";
+  html += R"rawliteral(</span></p>
+      <p>👁 Motion Count: )rawliteral";
+  html += String(motionCount);
+  html += R"rawliteral(</p>
       <p>🌡 Temperature: )rawliteral";
 
   html += isnan(temperature) ? "N/A" : String(temperature) + " °C";
@@ -123,6 +197,16 @@ void handleRoot() {
 void setup() {
   Serial.begin(115200);
   dht.begin();
+  
+  // Initialize PIR sensor
+  pinMode(PIR_PIN, INPUT);
+  attachInterrupt(digitalPinToInterrupt(PIR_PIN), handleMotion, RISING);
+  
+  // Initialize voltage monitoring
+  pinMode(VOLTAGE_PIN, INPUT);
+  
+  Serial.println("PIR Motion Sensor initialized on GPIO " + String(PIR_PIN));
+  Serial.println("Voltage monitoring initialized on GPIO " + String(VOLTAGE_PIN));
 
   // Set hostname (platform-specific method)
 #ifdef ESP32
@@ -152,6 +236,16 @@ void setup() {
 }
 
 void loop() {
+  // Handle PIR motion detection
+  handlePIRMotion();
+  
+  // Update voltage reading periodically
+  static unsigned long lastVoltageRead = 0;
+  if (millis() - lastVoltageRead > 5000) { // Read voltage every 5 seconds
+    readVoltage();
+    lastVoltageRead = millis();
+  }
+  
   // Debug block: print device status every 10 seconds
   static unsigned long lastDebug = 0;
   unsigned long now = millis();
@@ -181,6 +275,15 @@ void loop() {
 #endif
     Serial.print("MAC Address: ");
     Serial.println(WiFi.macAddress());
+    Serial.print("Solar Voltage: ");
+    Serial.print(voltage, 2);
+    Serial.print("V (");
+    Serial.print(isNightTime ? "NIGHT" : "DAY");
+    Serial.println(")");
+    Serial.print("Light Status: ");
+    Serial.println(lightActive ? "ON" : "OFF");
+    Serial.print("Motion Count: ");
+    Serial.println(motionCount);
     Serial.print("Temperature: ");
     Serial.print(isnan(temperature) ? "N/A" : String(temperature) + " °C");
     Serial.print(" | Humidity: ");
