@@ -11,6 +11,17 @@
 				"nodemcuv2"
 			],
 			"group": "build"
+		},
+		{
+			"label": "Test Build ESP8266",
+			"type": "shell",
+			"command": "C:/Users/${env:USERNAME}/.platformio/penv/Scripts/platformio.exe",
+			"args": [
+				"run",
+				"-e",
+				"nodemcuv2"
+			],
+			"group": "build"
 		}
 	]
 }

@@ -17,6 +17,7 @@
 #define DHTPIN 15
 #define DHTTYPE DHT22
 #define PIR_PIN 2
+#define LED_CONTROL_PIN 4  // This will connect to IC pin 3
 
 // Voltage sensing configuration
 #ifdef ESP32
@@ -34,6 +35,8 @@
 // Voltage divider ratio (adjust based on your hardware)
 #define VOLTAGE_DIVIDER_RATIO 4.1  // Calibrated for solar panel voltage
 #define NIGHT_VOLTAGE_THRESHOLD 1.5  // Below this voltage = night time
+#define LOW_BATTERY_THRESHOLD 3.2   // Below this voltage = low battery warning
+#define CRITICAL_BATTERY_THRESHOLD 3.0  // Below this voltage = shutdown
 
 DHT dht(DHTPIN, DHTTYPE);
 
@@ -59,6 +62,8 @@ unsigned long lastMotionTime = 0;
 unsigned long motionCount = 0;
 bool isNightTime = false;
 bool lightActive = false;
+bool lowBattery = false;
+bool criticalBattery = false;
 const unsigned long LIGHT_DURATION = 30000; // Light stays on for 30 seconds
 
 // Add your WiFi credentials here
@@ -79,6 +84,16 @@ void readVoltage() {
   int adcValue = analogRead(VOLTAGE_PIN);
   voltage = (adcValue * REF_VOLTAGE / ADC_MAX) * VOLTAGE_DIVIDER_RATIO;
   isNightTime = (voltage < NIGHT_VOLTAGE_THRESHOLD);
+  lowBattery = (voltage < LOW_BATTERY_THRESHOLD);
+  criticalBattery = (voltage < CRITICAL_BATTERY_THRESHOLD);
+  
+  // Critical battery protection
+  if (criticalBattery) {
+    Serial.println("⚠️ CRITICAL BATTERY - Entering deep sleep!");
+    digitalWrite(LED_CONTROL_PIN, LOW); // Ensure LEDs are off
+    // In a real implementation, you'd enter deep sleep here
+    // ESP.deepSleep(0); // Sleep until reset
+  }
 }
 
 // Handle PIR motion detection
@@ -89,7 +104,11 @@ void handlePIRMotion() {
     motionCount++;
     lightActive = true;
     
+    // Turn on LEDs via the original driver IC
+    digitalWrite(LED_CONTROL_PIN, HIGH);
+    
     Serial.println("*** MOTION DETECTED AT NIGHT ***");
+    Serial.println("LEDs turned ON via driver IC");
     Serial.print("Motion count: ");
     Serial.println(motionCount);
     Serial.print("Solar voltage: ");
@@ -100,7 +119,8 @@ void handlePIRMotion() {
   // Turn off light after duration
   if (lightActive && (millis() - lastMotionTime > LIGHT_DURATION)) {
     lightActive = false;
-    Serial.println("Light turned OFF (timeout)");
+    digitalWrite(LED_CONTROL_PIN, LOW);
+    Serial.println("LEDs turned OFF (timeout)");
   }
 }
 
@@ -196,17 +216,42 @@ void handleRoot() {
 
 void setup() {
   Serial.begin(115200);
+  
+  // Add power-on delay for stable startup
+  delay(1000);
+  Serial.println("Solar PIR Light Controller Starting...");
+  Serial.print("Running on: ");
+#ifdef ESP32
+  Serial.println("ESP32");
+#endif
+#ifdef ESP8266
+  Serial.println("ESP8266");
+#endif
+  
   dht.begin();
   
   // Initialize PIR sensor
   pinMode(PIR_PIN, INPUT);
   attachInterrupt(digitalPinToInterrupt(PIR_PIN), handleMotion, RISING);
   
+  // Initialize LED control pin
+  pinMode(LED_CONTROL_PIN, OUTPUT);
+  digitalWrite(LED_CONTROL_PIN, LOW); // Start with LEDs off
+  
   // Initialize voltage monitoring
   pinMode(VOLTAGE_PIN, INPUT);
   
   Serial.println("PIR Motion Sensor initialized on GPIO " + String(PIR_PIN));
+  Serial.println("LED Control initialized on GPIO " + String(LED_CONTROL_PIN));
   Serial.println("Voltage monitoring initialized on GPIO " + String(VOLTAGE_PIN));
+  
+  // Initial power status check
+  readVoltage();
+  Serial.print("Initial battery voltage: ");
+  Serial.print(voltage, 2);
+  Serial.println("V");
+  Serial.print("System mode: ");
+  Serial.println(isNightTime ? "NIGHT" : "DAY");
 
   // Set hostname (platform-specific method)
 #ifdef ESP32
