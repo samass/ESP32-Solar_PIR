@@ -6,3 +6,6 @@
 
 # Google Docs files
 *.gdoc
+
+# WiFi credentials - never commit this
+src/secrets.h
